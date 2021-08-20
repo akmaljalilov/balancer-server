@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
+	"github.com/buraksezer/consistent"
+	"github.com/cespare/xxhash"
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/client"
-	"github.com/go-mysql-org/go-mysql/failover"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/replication"
 	_ "github.com/go-sql-driver/mysql"
@@ -12,6 +13,7 @@ import (
 	"github.com/siddontang/go-log/log"
 	"os"
 	"strconv"
+	"velox/server/src/service/replic"
 )
 
 var hostReplic = "localhost"
@@ -130,23 +132,57 @@ func StartCanal() {
 	}
 }
 
-func failoverCheck() (*failover.Server, *failover.Server, error) {
-	f := failover.MysqlGTIDHandler{}
-	master := failover.NewServer("localhost:3307", failover.User{
+func failoverCheck() (*replic.Server, *replic.Server, error) {
+	f := replic.MysqlGTIDHandler{}
+
+	master := replic.NewServer("localhost:3307", replic.User{
 		Name:     "root",
 		Password: "123456",
-	}, failover.User{
+	}, replic.User{
 		Name:     "replic",
 		Password: "123456",
 	})
-	slave := failover.NewServer("localhost:3308", failover.User{
+	slave := replic.NewServer("localhost:3308", replic.User{
 		Name:     "root",
 		Password: "123456",
-	}, failover.User{
+	}, replic.User{
 		Name:     "replic",
 		Password: "123456",
 	})
 	err := f.ChangeMasterTo(slave, master)
 	return master, slave, err
 
+}
+
+type hasher struct{}
+
+func (h hasher) Sum64(data []byte) uint64 {
+	// you should use a proper hash function for uniformity.
+	return xxhash.Sum64(data)
+}
+
+type myMember string
+
+func (m myMember) String() string {
+	return string(m)
+}
+func Consistent() {
+	cfg := consistent.Config{
+		PartitionCount:    7,
+		ReplicationFactor: 20,
+		Load:              1.25,
+		Hasher:            hasher{},
+	}
+	c := consistent.New(nil, cfg)
+
+	// Add some members to the consistent hash table.
+	// Add function calculates average load and distributes partitions over members
+	node1 := myMember("nodgergrm")
+	c.Add(node1)
+
+	node2 := myMember("noergergom")
+	c.Add(node2)
+	key := []byte("my-key")
+	owner := c.LocateKey(key)
+	println(owner)
 }

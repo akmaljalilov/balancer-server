@@ -1,0 +1,113 @@
+version: '3.2'
+
+services:
+#  server:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    ports:
+#      - "8081:8081"
+#    restart: always
+#    environment:
+#      NAME: "server 1"
+#  server-2:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    ports:
+#      - "8080:8081"
+#    restart: always
+#    environment:
+#      NAME: "server 2"
+#  openresty:
+#    image: openresty/openresty:alpine
+#    ports:
+#      - "3000:3000"
+#    restart: always
+#    volumes:
+#      - ./config/nginx:/etc/nginx/conf.d/
+#      - ./lua:/etc/nginx/lua
+  mysql-master:
+    #Container name
+    container_name: mysql-master
+    #Image name docker pull in advance mysql:5.7.30  Otherwise it will be very slow
+    image: mysql:5.7.30
+    #Container restart after docker restart
+    restart: always
+    #Choose self built bridge network
+    #    networks:
+    #      network:
+    #        ipv4_address: 172.2.0.10
+    #        aliases:
+    #          - mysql-master
+    #MySQL parameter configuration my.cnf In this case, you can configure volumes / etc/ my.cnf :/etc/ my.cnf
+    networks:
+      - mysql_replic
+    command:
+      - --server-id=1
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --master-info-repository=TABLE
+      - --relay-log-info-repository=TABLE
+      - --binlog-checksum=NONE
+      - --log-slave-updates=ON
+      - --log-bin=master-bin
+      - --binlog-format=ROW
+      - --auto_increment_increment=2
+      - --auto_increment_offset=0
+    environment:
+      - TZ=Asia/Shanghai
+      #The default password configuration 123456 is changed to your password
+      - MYSQL_ROOT_PASSWORD=123456
+    ports:
+      - 3307:3306
+
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /etc/timezone:/etc/timezone
+      #The mount directory / var / lib / MySQL is the data of MySQL
+      - /data/mysql5matser:/var/lib/mysql
+  mysql-replic:
+    #Container name
+    container_name: mysql-replic
+    #Image name docker pull in advance mysql:5.7.30  Otherwise it will be very slow
+    image: mysql:5.7.30
+    #Container restart after docker restart
+    restart: always
+    #Choose self built bridge network
+    #    networks:
+    #      network:
+    #        ipv4_address: 172.2.0.15
+    #        aliases:
+    #          - mysql-replic
+    networks:
+      - mysql_replic
+    command:
+      - --server-id=2
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --master-info-repository=TABLE
+      - --relay-log-info-repository=TABLE
+      - --binlog-checksum=NONE
+      - --log-slave-updates=ON
+      - --log-bin=slave-bin
+      - --binlog-format=ROW
+      - --auto_increment_increment=2
+      - --auto_increment_offset=1
+    environment:
+      #Time zone
+      - TZ=Asia/Shanghai
+      #Default password configuration
+      - MYSQL_ROOT_PASSWORD=123456
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /etc/timezone:/etc/timezone
+      #The mount directory / var / lib / MySQL is the data disk
+      - /data/mysql5replic:/var/lib/mysql
+    ports:
+      - 3308:3306
+networks:
+  mysql_replic:
+    name: mysql_replic
+    #Force to use the created network, otherwise report an error
+    external: true

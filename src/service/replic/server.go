@@ -2,6 +2,7 @@ package replic
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -20,19 +21,29 @@ func (u User) FullName() string {
 type Server struct {
 	Addr string
 
-	User     User
-	ReplUser User
+	User     *User
+	ReplUser *User
 
 	conn *sqlx.DB
 }
 
-func NewServer(addr string, user User, replUser User) *Server {
+func NewServer(addr string, user *User, replUser *User) *Server {
 	s := new(Server)
 
 	s.Addr = addr
 
 	s.User = user
 	s.ReplUser = replUser
+	if replUser != nil {
+		_, err := s.Execute("CREATE USER " + replUser.Name + "@'%' IDENTIFIED BY '" + replUser.Password + "';")
+		if err != nil {
+			fmt.Println("Error in create user")
+		}
+		_, err = s.Execute("GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO " + replUser.Name + "@'%';")
+		if err != nil {
+			fmt.Println("Error in grant")
+		}
+	}
 
 	return s
 }
@@ -43,22 +54,20 @@ func (s *Server) Close() {
 	}
 }
 
-func (s *Server) Execute(cmd string, args ...interface{}) (r *sql.Rows, err error) {
-	retryNum := 3
-	for i := 0; i < retryNum; i++ {
-		if s.conn == nil {
-			s.conn, err = sqlx.Open("mysql", s.User.FullName()+"@("+s.Addr+")/")
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		r, err = s.conn.Query(cmd)
+func (s *Server) Execute(cmd string, args ...interface{}) (map[string]sql.NullString, error) {
+	var err error
+	if s.conn == nil {
+		s.conn, err = sqlx.Open("mysql", s.User.FullName()+"@("+s.Addr+")/")
 		if err != nil {
 			return nil, err
 		}
 	}
-	return
+
+	r, err := s.conn.Query(cmd)
+	if err != nil {
+		return nil, err
+	}
+	return scanMap(r)
 }
 
 func (s *Server) StartSlave() error {
@@ -78,10 +87,7 @@ func (s *Server) StopSlaveIOThread() error {
 
 func (s *Server) SlaveStatus() (map[string]sql.NullString, error) {
 	res, err := s.Execute("SHOW SLAVE STATUS")
-	if err != nil {
-		return nil, err
-	}
-	return scanMap(res)
+	return res, err
 }
 func scanMap(rows *sql.Rows) (map[string]sql.NullString, error) {
 	columns, err := rows.Columns()

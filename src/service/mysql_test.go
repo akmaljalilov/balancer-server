@@ -13,7 +13,7 @@ func TestStatusMaster(t *testing.T) {
 	//assert.NoError(t, err)
 	//err = registerSlave()
 	//assert.NoError(t, err)
-	_, _, err := failoverCheck()
+	_, _, err := ConnectAndGetToServer()
 	assert.NoError(t, err)
 	//status, err := m.MasterStatus()
 	//assert.NoError(t, err)

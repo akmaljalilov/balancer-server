@@ -62,11 +62,11 @@ func (h *MysqlGTIDHandler) Promote(s *Server) error {
 //}
 
 const changeMasterToWithAuto = `CHANGE MASTER TO 
-    MASTER_HOST = "%s", MASTER_PORT = %s, 
+    MASTER_HOST = "%s", MASTER_PORT = %d, 
     MASTER_USER = "%s", MASTER_PASSWORD = "%s", 
     MASTER_AUTO_POSITION = 1`
 
-func (h *MysqlGTIDHandler) ChangeMasterTo(s *Server, m *Server) error {
+func (h *MysqlGTIDHandler) ChangeMasterTo(s *Server, m *Server, hostMaser string) error { // TODO remove hostMaster
 	if err := h.WaitRelayLogDone(s); err != nil {
 		return errors.Trace(err)
 	}
@@ -79,10 +79,10 @@ func (h *MysqlGTIDHandler) ChangeMasterTo(s *Server, m *Server) error {
 		return errors.Trace(err)
 	}
 
-	host, port, _ := net.SplitHostPort(m.Addr)
+	_, _, _ = net.SplitHostPort(m.Addr)
 
 	if _, err := s.Execute(fmt.Sprintf(changeMasterToWithAuto,
-		host, port, m.ReplUser.Name, m.ReplUser.Password)); err != nil {
+		hostMaser, 3306, m.ReplUser.Name, m.ReplUser.Password)); err != nil { // ToDo change host name and port
 		return errors.Trace(err)
 	}
 
